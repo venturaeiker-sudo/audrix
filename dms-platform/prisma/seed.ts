@@ -115,7 +115,7 @@ async function main() {
 
   // ─── 2. Create branches ────────────────────────────────────────────────────
   const branchSDO = await prisma.branches.upsert({
-    where: { tenant_id_code: { tenant_id: tenant.id, code: 'SDO' } },
+    where: { code: 'SDO' },
     update: {},
     create: {
       tenant_id: tenant.id,
@@ -129,7 +129,7 @@ async function main() {
   });
 
   const branchSTI = await prisma.branches.upsert({
-    where: { tenant_id_code: { tenant_id: tenant.id, code: 'STI' } },
+    where: { code: 'STI' },
     update: {},
     create: {
       tenant_id: tenant.id,
@@ -204,7 +204,7 @@ async function main() {
   // ─── 5. Create admin user ──────────────────────────────────────────────────
   const adminPasswordHash = await bcrypt.hash('Admin123!', 12);
   const adminUser = await prisma.users.upsert({
-    where: { tenant_id_email: { tenant_id: tenant.id, email: 'admin@demo-dealer.com' } },
+    where: { email: 'admin@demo-dealer.com' },
     update: {},
     create: {
       tenant_id: tenant.id,
@@ -229,7 +229,7 @@ async function main() {
   // ─── 6. Create cashier demo user ───────────────────────────────────────────
   const cashierHash = await bcrypt.hash('Cashier123!', 12);
   const cashierUser = await prisma.users.upsert({
-    where: { tenant_id_email: { tenant_id: tenant.id, email: 'cajero@demo-dealer.com' } },
+    where: { email: 'cajero@demo-dealer.com' },
     update: {},
     create: {
       tenant_id: tenant.id,
@@ -318,7 +318,7 @@ async function main() {
   // ─── 8. Seed notification templates ───────────────────────────────────────
   for (const tmpl of NOTIFICATION_TEMPLATES) {
     await prisma.notification_templates.upsert({
-      where: { tenant_id_code: { tenant_id: tenant.id, code: tmpl.code } },
+      where: { code: tmpl.code },
       update: {},
       create: { tenant_id: tenant.id, ...tmpl },
     });

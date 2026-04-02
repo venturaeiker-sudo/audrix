@@ -1,3 +1,4 @@
+// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,53 +8,50 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ===================================================
-// TENANT Y SUCURSALES
-// ===================================================
-
+// ===== TENANT Y SUCURSALES =====
 model tenants {
-  id         String   @id @default(cuid())
-  name       String
-  rnc        String   @unique // RNC fiscal único por país
-  email      String
-  phone      String
-  address    String
-  logo_url   String?
-  is_active  Boolean  @default(true)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String   // Nombre del concesionario
+  rnc           String   @unique // RNC fiscal
+  email         String
+  phone         String
+  address       String
+  logo_url      String?
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
 
-  branches              branches[]
-  users                 users[]
-  roles                 roles[]
-  permissions           permissions[]
-  permission_templates  permission_templates[]
-  status_definitions    status_definitions[]
-  audit_logs            audit_logs[]
+  branches               branches[]
+  users                  users[]
+  roles                  roles[]
+  permissions            permissions[]
+  permission_templates   permission_templates[]
+  status_definitions     status_definitions[]
+  audit_logs             audit_logs[]
   notification_templates notification_templates[]
-  customers             customers[]
-  cash_sessions         cash_sessions[]
-  vehicles              vehicles[]
-  financing_contracts   financing_contracts[]
-  loan_payments         loan_payments[]
-  payments              payments[]
-  inventory_items       inventory_items[]
-  vehicle_registrations vehicle_registrations[]
+  customers              customers[]
+  cash_sessions          cash_sessions[]
+  vehicles               vehicles[]
+  financing_contracts    financing_contracts[]
+  loan_payments          loan_payments[]
+  payments               payments[]
+  inventory_items        inventory_items[]
+  vehicle_registrations  vehicle_registrations[]
 
   @@index([name])
 }
 
 model branches {
-  id        String    @id @default(cuid())
-  tenant_id String
-  name      String
-  code      String    // Short code: "SDO", "STI"
-  email     String
-  phone     String
-  address   String
-  is_active Boolean   @default(true)
-  opened_at DateTime
-  closed_at DateTime?
+  id          String    @id @default(cuid())
+  tenant_id   String
+  name        String    // Ej: "Sucursal Santo Domingo Oeste"
+  code        String    @unique // Código corto único global: "SDO"
+  email       String
+  phone       String
+  address     String
+  is_active   Boolean   @default(true)
+  opened_at   DateTime
+  closed_at   DateTime?
 
   tenant                tenants               @relation(fields: [tenant_id], references: [id])
   users                 users[]
@@ -64,20 +62,17 @@ model branches {
   payments              payments[]
   vehicle_registrations vehicle_registrations[]
 
-  @@unique([tenant_id, code])
+  @@index([tenant_id, code])
   @@index([tenant_id, is_active])
 }
 
-// ===================================================
-// USUARIOS Y ROLES
-// ===================================================
-
+// ===== USUARIOS Y ROLES =====
 model users {
   id            String    @id @default(cuid())
   tenant_id     String
-  branch_id     String?   // Null = access to full tenant
-  email         String
-  password      String    // bcrypt hash
+  branch_id     String?   // Null = acceso a todo el tenant
+  email         String    @unique // Único global (un email = una cuenta)
+  password      String    // Hash
   first_name    String
   last_name     String
   phone         String?
@@ -90,24 +85,24 @@ model users {
   tenant             tenants         @relation(fields: [tenant_id], references: [id])
   branch             branches?       @relation(fields: [branch_id], references: [id])
   roles              user_roles[]
-  cash_sessions      cash_sessions[]
-  audit_logs         audit_logs[]
-  assigned_customers customers[]     @relation("AssignedUser")
-  received_payments  payments[]      @relation("ReceivedByUser")
+  cash_sessions      cash_sessions[] // Sesiones que abrió/cerró
+  audit_logs         audit_logs[]   // Acciones que realizó
+  assigned_customers customers[]    @relation("AssignedUser")
+  received_payments  payments[]     @relation("ReceivedByUser")
 
-  @@unique([tenant_id, email])
+  @@index([tenant_id, email])
   @@index([tenant_id, is_active])
 }
 
 model roles {
   id          String   @id @default(cuid())
   tenant_id   String
-  name        String
+  name        String   // Ej: "Admin", "Cajero", "Vendedor"
   description String?
-  is_system   Boolean  @default(false) // Cannot be deleted
+  is_system   Boolean  @default(false) // No se puede eliminar si es sistema
   created_at  DateTime @default(now())
 
-  tenant      tenants          @relation(fields: [tenant_id], references: [id])
+  tenant      tenants            @relation(fields: [tenant_id], references: [id])
   permissions role_permissions[]
   users       user_roles[]
 
@@ -118,8 +113,8 @@ model roles {
 model permissions {
   id          String  @id @default(cuid())
   tenant_id   String
-  resource    String  // "customers", "cash-sessions", "roles"
-  action      String  // "create", "read", "update", "delete", "export"
+  resource    String  // Ej: "customers", "cash-sessions", "roles"
+  action      String  // Ej: "create", "read", "update", "delete", "export"
   description String?
 
   tenant           tenants            @relation(fields: [tenant_id], references: [id])
@@ -144,7 +139,7 @@ model user_roles {
   id          String   @id @default(cuid())
   user_id     String
   role_id     String
-  assigned_by String?
+  assigned_by String?  // Usuario que asignó el rol
   assigned_at DateTime @default(now())
 
   user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -153,31 +148,28 @@ model user_roles {
   @@unique([user_id, role_id])
 }
 
-// ===================================================
-// CLIENTE 360 BASE
-// ===================================================
-
+// ===== CLIENTE 360 BASE =====
 model customers {
   id                    String    @id @default(cuid())
   tenant_id             String
-  branch_id             String?
+  branch_id             String?   // Sucursal principal (null = tenant-wide)
   first_name            String
   last_name             String
   email                 String?
   phone                 String
-  identification_type   String?   // cedula, pasaporte, rnc
+  identification_type   String?   // cédula, pasaporte, rnc
   identification_number String?
   address               String?
   city                  String?
-  status                String    @default("active")
-  assigned_to           String?   // Responsible user (sales/collections)
-  credit_score          Int?      // 0-1000, calculated later
+  status                String    @default("active") // Vinculado a status_definitions
+  assigned_to           String?   // Usuario responsable (ventas/cobranza)
+  credit_score          Int?      // 0-1000, calculado posteriormente
   created_at            DateTime  @default(now())
   updated_at            DateTime  @updatedAt
 
-  tenant        tenants               @relation(fields: [tenant_id], references: [id])
-  branch        branches?             @relation(fields: [branch_id], references: [id])
-  assigned_user users?                @relation("AssignedUser", fields: [assigned_to], references: [id])
+  tenant        tenants   @relation(fields: [tenant_id], references: [id])
+  branch        branches? @relation(fields: [branch_id], references: [id])
+  assigned_user users?    @relation("AssignedUser", fields: [assigned_to], references: [id])
 
   vehicles              vehicles[]
   financing_contracts   financing_contracts[]
@@ -189,19 +181,16 @@ model customers {
   @@index([tenant_id, assigned_to])
 }
 
-// ===================================================
-// ESTADOS DINÁMICOS — clave para escalabilidad
-// ===================================================
-
+// ===== ESTADOS DINÁMICOS (CLAVE PARA ESCALABILIDAD) =====
 model status_definitions {
   id          String   @id @default(cuid())
   tenant_id   String
-  entity_type String   // "customer", "contract", "cash_session", "vehicle_registration"
-  code        String   // "active", "past_due", "plate_ready"
-  label       String   // Display label: "Activo", "Vencido", "Placa Lista"
-  color       String   // Hex: "#28a745"
-  is_initial  Boolean  @default(false)
-  is_final    Boolean  @default(false)
+  entity_type String   // Ej: "customer", "contract", "cash_session", "vehicle_registration"
+  code        String   // Código corto: "active", "past_due", "plate_ready"
+  label       String   // Etiqueta para mostrar: "Activo", "Vencido", "Placa Lista"
+  color       String   // Hex code: "#28a745", "#dc3545", "#ffc107"
+  is_initial  Boolean  @default(false) // Estado de creación
+  is_final    Boolean  @default(false) // Estado terminal (no se puede salir)
   is_active   Boolean  @default(true)
   created_at  DateTime @default(now())
 
@@ -211,20 +200,17 @@ model status_definitions {
   @@index([tenant_id, entity_type, is_active])
 }
 
-// ===================================================
-// CAJA — control financiero obligatorio
-// ===================================================
-
+// ===== CAJA (FUNDAMENTAL PARA CONTROL FINANCIERO) =====
 model cash_sessions {
   id             String    @id @default(cuid())
   tenant_id      String
   branch_id      String
-  user_id        String
+  user_id        String    // Usuario que abrió la sesión
   opened_at      DateTime  @default(now())
   closed_at      DateTime?
-  status         String    @default("open") // open / closed
+  status         String    @default("open") // open/closed
   opening_amount Decimal   @default(0) @db.Decimal(12, 2)
-  closing_amount Decimal?  @db.Decimal(12, 2)
+  closing_amount Decimal?  @db.Decimal(12, 2) // Se calcula al cerrar
   total_payments Decimal   @default(0) @db.Decimal(12, 2)
   notes          String?
 
@@ -238,17 +224,18 @@ model cash_sessions {
   @@index([tenant_id, user_id])
 }
 
+// ===== PAGOS (VINCULADOS A CAJA) =====
 model payments {
   id               String   @id @default(cuid())
   tenant_id        String
   branch_id        String
   cash_session_id  String
-  customer_id      String?
+  customer_id      String?  // Null = pago sin cliente (ej: pago de proveedor)
   amount           Decimal  @db.Decimal(12, 2)
   method           String   // cash, card, transfer, check
-  reference_number String?
+  reference_number String?  // Número de cheque, referencia de transferencia
   received_at      DateTime @default(now())
-  received_by      String?
+  received_by      String?  // Usuario que recibió el pago (puede ser distinto al que abrió caja)
   notes            String?
 
   tenant           tenants       @relation(fields: [tenant_id], references: [id])
@@ -261,18 +248,15 @@ model payments {
   @@index([tenant_id, customer_id, received_at])
 }
 
-// ===================================================
-// AUDITORÍA BÁSICA
-// ===================================================
-
+// ===== AUDITORÍA BÁSICA =====
 model audit_logs {
   id           String   @id @default(cuid())
   tenant_id    String
-  user_id      String
-  entity_type  String   // "customers", "cash_sessions", "roles"
-  entity_id    String
+  user_id      String   // Usuario que realizó la acción
+  entity_type  String   // Modelo afectado: "customers", "cash-sessions", "roles"
+  entity_id    String   // ID del registro afectado
   action       String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT
-  changes_json Json?    // { before: {...}, after: {...} }
+  changes_json Json?    // { antes: {...}, después: {...} } para UPDATE
   ip_address   String?
   user_agent   String?
   created_at   DateTime @default(now())
@@ -284,14 +268,11 @@ model audit_logs {
   @@index([tenant_id, user_id, created_at])
 }
 
-// ===================================================
-// PLANTILLAS DE NOTIFICACIONES
-// ===================================================
-
+// ===== PLANTILLAS DE NOTIFICACIONES (BASE PARA FASE 1) =====
 model notification_templates {
   id               String   @id @default(cuid())
   tenant_id        String
-  code             String   // payment_receipt, cash_close, plate_ready
+  code             String   @unique // payment_receipt, cash_close, plate_ready
   name             String
   subject_template String
   html_template    String
@@ -301,14 +282,10 @@ model notification_templates {
 
   tenant tenants @relation(fields: [tenant_id], references: [id])
 
-  @@unique([tenant_id, code])
   @@index([tenant_id, code])
 }
 
-// ===================================================
-// TABLAS DE SOPORTE — evitan hardcodeo
-// ===================================================
-
+// ===== TABLAS DE SOPORTE (para evitar hardcodeo) =====
 model permission_templates {
   id          String  @id @default(cuid())
   tenant_id   String
@@ -322,22 +299,19 @@ model permission_templates {
   @@unique([tenant_id, resource, action])
 }
 
-// ===================================================
-// VEHÍCULOS — base para fases posteriores
-// ===================================================
-
+// ===== VEHÍCULOS (BASE PARA FASES POSTERIORES) =====
 model vehicles {
   id             String  @id @default(cuid())
   tenant_id      String
-  customer_id    String? // Null = in inventory; set when sold/financed
-  vin            String?
-  chassis_number String?
-  license_plate  String? // Unique per tenant after assignment
+  customer_id    String? // Null = en inventario; set al vender/financiar
+  vin            String? // 17 caracteres, único global si existe
+  chassis_number String? // Número de chassi (para vehículos sin VIN)
+  license_plate  String  @unique // Placa única global (emitida por gobierno)
   color          String
   make           String
   model          String
   year           Int
-  status         String  // in_stock, reserved, sold (linked to status_definitions)
+  status         String  // in_stock, reserved, sold (vinculado a status_definitions)
 
   tenant                tenants               @relation(fields: [tenant_id], references: [id])
   customer              customers?            @relation(fields: [customer_id], references: [id])
@@ -347,29 +321,23 @@ model vehicles {
   @@index([tenant_id, vin])
   @@index([tenant_id, chassis_number])
   @@index([tenant_id, license_plate])
-  @@index([tenant_id, status])
 }
 
-// ===================================================
-// CONTRATOS DE FINANCIAMIENTO — base
-// ===================================================
-
+// ===== CONTRATOS DE FINANCIAMIENTO (BASE) =====
 model financing_contracts {
-  id                String   @id @default(cuid())
+  id                String  @id @default(cuid())
   tenant_id         String
   branch_id         String
   customer_id       String
-  vehicle_id        String?
-  contract_number   String   @unique
-  total_amount      Decimal  @db.Decimal(12, 2)
-  initial_amount    Decimal  @db.Decimal(12, 2)
-  initial_received  Decimal  @default(0) @db.Decimal(12, 2)
-  remaining_balance Decimal  @default(0) @db.Decimal(12, 2)
-  interest_rate     Decimal  @db.Decimal(5, 4) // Monthly rate e.g. 0.0300
+  vehicle_id        String? // Vinculado al vehículo financiado
+  contract_number   String  @unique
+  total_amount      Decimal @db.Decimal(12, 2)
+  initial_amount    Decimal @db.Decimal(12, 2)
+  initial_received  Decimal @default(0) @db.Decimal(12, 2)
+  remaining_balance Decimal @default(0) @db.Decimal(12, 2)
+  interest_rate     Decimal @db.Decimal(5, 4) // Tasa mensual (ej: 0.0300 para 3%)
   term_months       Int
-  status            String
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
+  status            String  // Vinculado a status_definitions
 
   tenant        tenants     @relation(fields: [tenant_id], references: [id])
   branch        branches    @relation(fields: [branch_id], references: [id])
@@ -381,18 +349,19 @@ model financing_contracts {
   @@index([tenant_id, customer_id, status])
 }
 
+// ===== PAGOS DE PRESTAMO =====
 model loan_payments {
   id               String    @id @default(cuid())
   tenant_id        String
   branch_id        String
   contract_id      String
-  cash_session_id  String?
-  payment_number   Int
+  cash_session_id  String?   // Vinculado a caja si se pagó en sucursal
+  payment_number   Int       // ¿Cuál cuota es? (1, 2, 3...)
   payment_type     String    // initial, installment, extra_payment
   amount           Decimal   @db.Decimal(12, 2)
   payment_date     DateTime  @default(now())
   method           String    // cash, card, transfer
-  reference_number String?
+  reference_number String?   // Número de recibo
   receipt_sent     Boolean   @default(false)
 
   tenant       tenants             @relation(fields: [tenant_id], references: [id])
@@ -403,14 +372,12 @@ model loan_payments {
   @@index([tenant_id, contract_id, payment_date])
 }
 
-// ===================================================
-// INVENTARIO — base para fases posteriores
-// ===================================================
-
+// ===== SÍMBOLOS DE RELACIÓN (para evitar errores) =====
+// Los modelos siguientes se usarán en fases posteriores pero se definen aquí para completitud
 model inventory_items {
   id         String  @id @default(cuid())
   tenant_id  String
-  sku        String
+  sku        String  @unique
   name       String
   category   String
   quantity   Int
@@ -419,20 +386,14 @@ model inventory_items {
   status     String
 
   tenant tenants @relation(fields: [tenant_id], references: [id])
-
-  @@unique([tenant_id, sku])
 }
-
-// ===================================================
-// REGISTROS DE VEHÍCULOS / PLACAS
-// ===================================================
 
 model vehicle_registrations {
   id                  String  @id @default(cuid())
   tenant_id           String
   branch_id           String
   customer_id         String
-  vehicle_id          String
+  vehicle_id          String  // Vinculado al vehículo (para saber qué placa/matrícula)
   status              String  // pending_dgii, plate_ready, delivered, completed
   assigned_employee   String?
   chassis_vin         String
@@ -445,3 +406,6 @@ model vehicle_registrations {
   customer customers @relation(fields: [customer_id], references: [id])
   vehicle  vehicles  @relation(fields: [vehicle_id], references: [id])
 }
+
+// NOTA: Los modelos de auditoría, notificaciones y estados dinámicos son transversales
+// y se usarán en TODAS las fases posteriores sin modificar su estructura

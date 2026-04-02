@@ -13,14 +13,13 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   async create(createUserDto: CreateUserDto, tenantId: string) {
+    // email is globally unique — one account per email across all tenants
     const existing = await this.prisma.users.findUnique({
-      where: {
-        tenant_id_email: { tenant_id: tenantId, email: createUserDto.email },
-      },
+      where: { email: createUserDto.email },
     });
 
     if (existing) {
-      throw new ConflictException('Email already exists in this tenant');
+      throw new ConflictException('Email already registered');
     }
 
     const hashedPassword = await bcrypt.hash(createUserDto.password, 12);
@@ -104,10 +103,10 @@ export class UsersService {
 
     // Check email uniqueness if changing email
     if (updateUserDto.email && updateUserDto.email !== user.email) {
-      const emailTaken = await this.prisma.users.findFirst({
-        where: { tenant_id: tenantId, email: updateUserDto.email, id: { not: id } },
+      const emailTaken = await this.prisma.users.findUnique({
+        where: { email: updateUserDto.email },
       });
-      if (emailTaken) throw new ConflictException('Email already in use');
+      if (emailTaken) throw new ConflictException('Email already registered');
     }
 
     return this.prisma.users.update({
